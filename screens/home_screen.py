@@ -7,20 +7,35 @@ from kivy.uix.image import Image
 from kivy.core.window import Window
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Rectangle, RoundedRectangle
-from kivy.core.text import LabelBase
 from kivy.animation import Animation
 from kivy.uix.behaviors import ButtonBehavior
+import os
+import sys
 
-# Daftarkan font Roboto
-LabelBase.register(name="Roboto", fn_regular="assets/fonts/Roboto-Regular.ttf")
-LabelBase.register(name="Roboto2", fn_regular="assets/fonts/Roboto_Condensed-Bold.ttf")
+# Enhanced resource path function
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
 
-# Atur ukuran dan warna jendela
+    path = os.path.join(base_path, *relative_path.split('/'))
+    path = os.path.normpath(path)
+    
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Resource not found: {path}")
+    
+    return path
+
+# Window settings
 Window.size = (800, 600)
-Window.clearcolor = (1, 1, 1, 1)  # Background default (akan ditutupi gambar)
+Window.clearcolor = (1, 1, 1, 1)  # White background
 
-BUTTON_COLOR = (0.18, 0.32, 0.63, 1)  # Warna #2f52a0
-MARQUEE_BG_COLOR = (1, 0.77, 0.04, 1)  # Warna #ffc50b
+# Color constants
+BUTTON_COLOR = (0.18, 0.32, 0.63, 1)  # #2f52a0
+MARQUEE_BG_COLOR = (1, 0.77, 0.04, 1)  # #ffc50b
 
 class HoverButton(ButtonBehavior, BoxLayout):
     def __init__(self, text='', icon_path='', **kwargs):
@@ -40,12 +55,19 @@ class HoverButton(ButtonBehavior, BoxLayout):
             self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[20])
 
         if icon_path:
-            self.icon = Image(source=icon_path, size_hint=(None, None), size=(65, 65), pos_hint={'center_x': 0.5, 'y': 2})
-            self.add_widget(self.icon)
+            try:
+                self.icon = Image(
+                    source=resource_path(icon_path), 
+                    size_hint=(None, None), 
+                    size=(65, 65), 
+                    pos_hint={'center_x': 0.5, 'y': 2}
+                )
+                self.add_widget(self.icon)
+            except Exception as e:
+                print(f"Error loading icon: {e}")
 
         self.label = Label(
             text=text,
-            font_name="Roboto2",
             font_size=25,
             color=(1, 1, 1, 1),
             halign='center',
@@ -65,7 +87,7 @@ class HoverButton(ButtonBehavior, BoxLayout):
         self.shadow.size = (self.size[0] + 10, self.size[1] + 10)
 
     def on_mouse_pos(self, window, pos):
-        if self.get_root_window() and self.collide_point(*pos):
+        if self.collide_point(*pos):
             self.show_hover()
         else:
             self.hide_hover()
@@ -98,7 +120,6 @@ class MarqueeLabel(BoxLayout):
 
         self.label = Label(
             text=text,
-            font_name="Roboto2",
             font_size=30,
             color=(0, 0, 0, 1),
             halign="left",
@@ -127,57 +148,99 @@ class HomeScreen(Screen):
     def __init__(self, **kwargs):
         super(HomeScreen, self).__init__(**kwargs)
 
-        with self.canvas.before:
-            self.bg_image = Rectangle(source='assets/Background.jpeg', size=Window.size, pos=self.pos)
+        # Background with error handling
+        try:
+            bg_source = resource_path('assets/Background.jpeg')
+            with self.canvas.before:
+                self.bg_image = Rectangle(source=bg_source, size=Window.size, pos=self.pos)
+        except Exception as e:
+            print(f"Error loading background: {e}")
+            with self.canvas.before:
+                Color(0.95, 0.95, 0.95, 1)
+                self.bg_image = Rectangle(size=Window.size, pos=self.pos)
+
         self.bind(size=self.update_bg, pos=self.update_bg)
 
         main_layout = BoxLayout(orientation='vertical')
 
+        # Navbar
         navbar = BoxLayout(orientation='horizontal', size_hint=(1, 0.11), padding=10, spacing=10)
         with navbar.canvas.before:
             Color(*BUTTON_COLOR)
             self.rect_navbar = Rectangle(size=navbar.size, pos=navbar.pos)
         navbar.bind(size=self.update_navbar, pos=self.update_navbar)
 
-        back_button = Button(
-            background_normal='assets/icons/back_icon.png',
-            background_down='assets/icons/back_icon.png',
-            size_hint=(None, None),
-            size=(65, 65),
-            pos_hint={'center_y': 0.5},
-            on_release=self.go_back
-        )
+        # Navbar components
+        try:
+            back_button = Button(
+                background_normal=resource_path('assets/icons/back_icon.png'),
+                background_down=resource_path('assets/icons/back_icon.png'),
+                size_hint=(None, None),
+                size=(65, 65),
+                pos_hint={'center_y': 0.5},
+                on_release=self.go_back
+            )
+            navbar.add_widget(back_button)
+        except Exception as e:
+            print(f"Error loading back button: {e}")
 
-        logo = Image(source="assets/logo_unair.png", size_hint=(None, None), size=(70, 70), pos_hint={'center_y': 0.5})
+        try:
+            logo = Image(
+                source=resource_path("assets/logo_unair.png"), 
+                size_hint=(None, None), 
+                size=(70, 70), 
+                pos_hint={'center_y': 0.5}
+            )
+            navbar.add_widget(logo)
+        except Exception as e:
+            print(f"Error loading logo: {e}")
+
         title = Label(
-            text="[b]ARSIP FAKULTAS SAINS DAN TEKNOLOGI[/b]",
+            text="[b]RUANG BACA FAKULTAS SAINS DAN TEKNOLOGI[/b]",
             markup=True,
-            font_name="Roboto2",
             font_size=36,
             halign="left",
             valign="middle"
         )
-
-        navbar.add_widget(back_button)
-        navbar.add_widget(logo)
         navbar.add_widget(title)
 
-        marquee = MarqueeLabel("SELAMAT DATANG DI SISTEM ARSIP FAKULTAS SAINS DAN TEKNOLOGI UNIVERSITAS AIRLANGGA")
+        # Marquee
+        marquee = MarqueeLabel("SELAMAT DATANG DI SISTEM MANAGEMENT RUANG BACA FAKULTAS SAINS DAN TEKNOLOGI UNIVERSITAS AIRLANGGA")
 
+        # Buttons
         button_layout = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), padding=20, spacing=20)
-        btn_input = HoverButton(text="INPUT DATA ARSIP", icon_path='assets/icons/input_icon.png')
-        btn_search = HoverButton(text="CARI ARSIP", icon_path='assets/icons/search_icon.png')
-        btn_exit = HoverButton(text="KELUAR", icon_path='assets/icons/exit_icon.png')
-        btn_exit.bind(on_release=self.exit_app)
+        
+        try:
+            btn_input = HoverButton(
+                text="INPUT DATA MAHASISWA", 
+                icon_path=resource_path('assets/icons/input_icon.png')
+            )
+            btn_input.bind(on_release=self.go_to_input)
+            button_layout.add_widget(btn_input)
+        except Exception as e:
+            print(f"Error creating input button: {e}")
 
-        # Bind tombol input dan search ke fungsi pindah layar
-        btn_input.bind(on_release=self.go_to_input)
-        btn_search.bind(on_release=self.go_to_search)
+        try:
+            btn_search = HoverButton(
+                text="CARI DATA", 
+                icon_path=resource_path('assets/icons/search_icon.png')
+            )
+            btn_search.bind(on_release=self.go_to_search)
+            button_layout.add_widget(btn_search)
+        except Exception as e:
+            print(f"Error creating search button: {e}")
 
-        button_layout.add_widget(btn_input)
-        button_layout.add_widget(btn_search)
-        button_layout.add_widget(btn_exit)
+        try:
+            btn_exit = HoverButton(
+                text="KELUAR", 
+                icon_path=resource_path('assets/icons/exit_icon.png')
+            )
+            btn_exit.bind(on_release=self.exit_app)
+            button_layout.add_widget(btn_exit)
+        except Exception as e:
+            print(f"Error creating exit button: {e}")
 
+        # Assemble layout
         main_layout.add_widget(navbar)
         main_layout.add_widget(marquee)
         main_layout.add_widget(Widget(size_hint=(1, 0.55)))
@@ -204,44 +267,3 @@ class HomeScreen(Screen):
 
     def go_to_search(self, instance):
         self.manager.current = 'search'
-
-class InputScreen(Screen):
-    def __init__(self, **kwargs):
-        super(InputScreen, self).__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical')
-
-        label = Label(text="Halaman Input Data Arsip", font_size=30, font_name="Roboto2")
-        btn_back = Button(text="Kembali ke Home", size_hint=(0.3, 0.1), on_release=self.go_back)
-
-        layout.add_widget(label)
-        layout.add_widget(btn_back)
-        self.add_widget(layout)
-
-    def go_back(self, instance):
-        self.manager.current = 'home'
-
-class SearchScreen(Screen):
-    def __init__(self, **kwargs):
-        super(SearchScreen, self).__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical')
-
-        label = Label(text="Halaman Cari Data Arsip", font_size=30, font_name="Roboto2")
-        btn_back = Button(text="Kembali ke Home", size_hint=(0.3, 0.1), on_release=self.go_back)
-
-        layout.add_widget(label)
-        layout.add_widget(btn_back)
-        self.add_widget(layout)
-
-    def go_back(self, instance):
-        self.manager.current = 'home'
-
-class ArsipApp(App):
-    def build(self):
-        sm = ScreenManager()
-        sm.add_widget(HomeScreen(name='home'))
-        sm.add_widget(InputScreen(name='input'))
-        sm.add_widget(SearchScreen(name='search'))
-        return sm
-
-if __name__ == '__main__':
-    ArsipApp().run()

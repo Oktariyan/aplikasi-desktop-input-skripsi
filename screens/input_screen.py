@@ -1,4 +1,6 @@
-from kivy.app import App
+import os
+import openpyxl
+from kivy.app import App 
 from kivy.uix.screenmanager import Screen, ScreenManager
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
@@ -8,49 +10,46 @@ from kivy.uix.button import Button
 from kivy.uix.spinner import Spinner
 from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
-from kivy.core.text import LabelBase
 from kivy.uix.image import Image
 from kivy.graphics import Color, Rectangle
-from tkinter import Tk, filedialog
+from datetime import datetime
 
-# Registrasi font Roboto
-LabelBase.register(name="Roboto", fn_regular="assets/fonts/roboto-regular.ttf")
-LabelBase.register(name="Roboto2", fn_regular="assets/fonts/Roboto_Condensed-Bold.ttf")
-
-# Atur ukuran window
+# Window size
 Window.size = (800, 600)
 
-# Warna tombol
-BUTTON_COLOR = (0.184, 0.322, 0.627, 1)  # Warna navbar (#2f52a0)
-BUTTON_HOVER_COLOR = (0.15, 0.26, 0.52, 1)  # Warna hover (#26428a)
-RED_COLOR = (1, 0, 0, 1)  # Warna merah untuk peringatan
-
-used_numbers = set()  # Menyimpan no urut yang telah digunakan
+# Color constants
+BUTTON_COLOR = (0.184, 0.322, 0.627, 1)  # Navbar color (#2f52a0)
+RED_COLOR = (1, 0, 0, 1)  # Warning color
+BLACK_COLOR = (0, 0, 0, 1)  # Text color
+WHITE_COLOR = (1, 1, 1, 1)  # White color
 
 class Navbar(BoxLayout):
     def __init__(self, back_callback=None, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'horizontal'
         self.size_hint_y = 0.1
-        self.padding = [20, 10]  # Padding: [kiri/kanan, atas/bawah]
-        self.spacing = 15  # Jarak antar widget di navbar
+        self.padding = [20, 10]
+        self.spacing = 15
 
         with self.canvas.before:
-            Color(*BUTTON_COLOR)  # Warna navbar
+            Color(*BUTTON_COLOR)
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
 
         back_btn = Button(size_hint=(None, None), size=(65, 65), pos_hint={'center_y': 0.5},
-                          background_normal='assets/icons/back_icon.png', background_down='assets/icons/back_icon.png')
+                         background_normal='assets/icons/back_icon.png', 
+                         background_down='assets/icons/back_icon.png')
         if back_callback:
             back_btn.bind(on_release=back_callback)
         self.add_widget(back_btn)
 
-        logo = Image(source='assets/logo_unair.png', size_hint=(None, None), size=(50, 50), pos_hint={'center_y': 0.5})
+        logo = Image(source='assets/logo_unair.png', size_hint=(None, None), 
+                    size=(50, 50), pos_hint={'center_y': 0.5})
         self.add_widget(logo)
 
-        title_label = Label(text="ARSIP FAKULTAS SAINS DAN TEKNOLOGI", font_name="Roboto2", font_size=20,
-                            color=(1, 1, 1, 1), halign="left", valign="middle")
+        title_label = Label(text="RUANG BACA FAKULTAS SAINS DAN TEKNOLOGI", 
+                          font_size=20, color=WHITE_COLOR, 
+                          halign="left", valign="middle")
         title_label.bind(size=title_label.setter('text_size'))
         self.add_widget(title_label)
 
@@ -63,121 +62,195 @@ class InputScreen(Screen):
         super().__init__(**kwargs)
 
         with self.canvas.before:
-            Color(1, 1, 1, 1)  # Latar putih
+            Color(*WHITE_COLOR)
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
 
-        self.selected_file = ""  # Menyimpan file yang dipilih
-        self.warning_label = Label(text="", font_name="Roboto", font_size=14, color=RED_COLOR, size_hint=(1, 0.05), halign="center")
+        self.selected_file = "data_mahasiswa.xlsx"
+        self.warning_label = Label(text="", font_size=14, color=RED_COLOR, 
+                                  size_hint=(1, 0.05), halign="center")
 
-        main_layout = BoxLayout(orientation="vertical", padding=[20, 10], spacing=10)  # Padding dan spacing di layout utama
-        main_layout.add_widget(Navbar(back_callback=self.go_back))
+        main_layout = BoxLayout(orientation="vertical", padding=[20, 10], spacing=10)
+        
+        # Navbar
+        navbar = Navbar(back_callback=self.go_back)
+        main_layout.add_widget(navbar)
 
+        # Title
         title_layout = BoxLayout(size_hint=(1, 0.12), padding=[0, 10])
-        title = Label(text="INPUT ARSIP", font_size=24, font_name="Roboto", size_hint=(1, 1),
-                      color=(0, 0, 0, 1), halign="center", valign="middle")
-        title.bind(size=lambda instance, value: setattr(instance, 'text_size', value))
+        title = Label(text="INPUT DATA MAHASISWA", font_size=24, 
+                     color=BLACK_COLOR, halign="center", valign="middle")
+        title.bind(size=title.setter('text_size'))
         title_layout.add_widget(title)
         main_layout.add_widget(title_layout)
 
-        scroll = ScrollView(size_hint=(1, 0.7))  # Hapus padding dari ScrollView
-        form_layout = GridLayout(cols=2, spacing=15, padding=[20, 10], size_hint_y=None, row_default_height=50)
+        # Form Layout
+        scroll = ScrollView(size_hint=(1, 0.7))
+        form_layout = GridLayout(cols=2, spacing=15, padding=[20, 10], 
+                               size_hint_y=None, row_default_height=50)
         form_layout.bind(minimum_height=form_layout.setter('height'))
 
-        labels = ["No Urut", "No Boks", "No Berkas", "Kode Klasifikasi", "Indeks/Nama Berkas", "Urai Informasi Arsip", "Kurun Waktu"]
+        labels = ["TANGGAL PENCATATAN", "NO. INDUK", "PENGARANG", "NIM", 
+                "TAHUN TERBIT", "JUDUL"]
         self.inputs = {}
-
+        
+        # Category spinner
+        form_layout.add_widget(Label(text="Jenis Karya Ilmiah", color=BLACK_COLOR))
+        self.spinner_kategori = Spinner(text="Pilih", values=list(PROGRAM_STUDI.keys()))
+        self.spinner_kategori.bind(text=self.update_jenjang)
+        form_layout.add_widget(self.spinner_kategori)
+        
+        # Level spinner
+        form_layout.add_widget(Label(text="Jenjang", color=BLACK_COLOR))
+        self.spinner_jenjang = Spinner(text="Pilih", values=[])
+        self.spinner_jenjang.bind(text=self.update_prodi)
+        form_layout.add_widget(self.spinner_jenjang)
+        
+        # Program spinner
+        form_layout.add_widget(Label(text="Program Studi", color=BLACK_COLOR))
+        self.spinner_prodi = Spinner(text="Pilih", values=[])
+        form_layout.add_widget(self.spinner_prodi)
+        
+        # Input fields
         for label_text in labels:
-            form_layout.add_widget(Label(text=label_text, font_name="Roboto", color=(0, 0, 0, 1), halign="right", valign="middle"))
-            input_field = TextInput(multiline=False, font_name="Roboto", halign="center", size_hint_y=None, height=40)
+            form_layout.add_widget(Label(text=label_text, color=BLACK_COLOR))
+            input_field = TextInput(multiline=False, foreground_color=BLACK_COLOR)
+            input_field.bind(on_text_validate=self.focus_next_input)
             form_layout.add_widget(input_field)
             self.inputs[label_text] = input_field
-
-        form_layout.add_widget(Label(text="Jangka Simpan", font_name="Roboto", color=(0, 0, 0, 1), halign="right", valign="middle"))
-        self.spinner_jangka = Spinner(text="Pilih", values=["Aktif", "Inaktif"], font_name="Roboto", size_hint_y=None, height=40)
-        form_layout.add_widget(self.spinner_jangka)
-
-        form_layout.add_widget(Label(text="Kategori Arsip", font_name="Roboto", color=(0, 0, 0, 1), halign="right", valign="middle"))
-        self.spinner_kategori = Spinner(text="Pilih", values=["AV: Arsip Vital", "AT: Arsip Terjaga", "R: Rahasia", "T: Terjaga"], font_name="Roboto", size_hint_y=None, height=40)
-        form_layout.add_widget(self.spinner_kategori)
-
-        form_layout.add_widget(Label(text="Deskripsi (Opsional)", font_name="Roboto", color=(0, 0, 0, 1), halign="right", valign="middle"))
-        self.deskripsi_input = TextInput(multiline=True, font_name="Roboto", halign="center", size_hint_y=None, height=100)
-        form_layout.add_widget(self.deskripsi_input)
-
-        form_layout.add_widget(Label(text="Upload Berkas", font_name="Roboto", color=(0, 0, 0, 1), halign="right", valign="middle"))
-        upload_btn = Button(text="Pilih File", font_name="Roboto", background_color=BUTTON_COLOR, size_hint_y=None, height=40)
-        upload_btn.bind(on_release=self.open_file_dialog)
-        form_layout.add_widget(upload_btn)
 
         scroll.add_widget(form_layout)
         main_layout.add_widget(scroll)
         main_layout.add_widget(self.warning_label)
 
-        button_layout = BoxLayout(size_hint=(1, 0.1), spacing=20, padding=[20, 10])  # Padding dan spacing di tombol
-        clear_btn = Button(text="CLEAR", background_color=BUTTON_COLOR, font_name="Roboto")
-        submit_btn = Button(text="SUBMIT", background_color=BUTTON_COLOR, font_name="Roboto")
+        # Buttons
+        button_layout = BoxLayout(size_hint=(1, 0.1), spacing=20, padding=[20, 10])
+        clear_btn = Button(text="CLEAR", background_color=BUTTON_COLOR, color=WHITE_COLOR)
+        submit_btn = Button(text="SUBMIT", background_color=BUTTON_COLOR, color=WHITE_COLOR)
         clear_btn.bind(on_release=self.clear_form)
         submit_btn.bind(on_release=self.submit_form)
         button_layout.add_widget(clear_btn)
         button_layout.add_widget(submit_btn)
-
         main_layout.add_widget(button_layout)
+
         self.add_widget(main_layout)
 
     def update_rect(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
 
-    def open_file_dialog(self, instance):
-        root = Tk()
-        root.withdraw()  # Sembunyikan jendela utama Tkinter
-        file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.jpeg"), ("PDF files", "*.pdf")])
-        if file_path:
-            self.selected_file = file_path
-            self.warning_label.text = f"File dipilih: {file_path.split('/')[-1]}"
-        else:
-            self.warning_label.text = "Tidak ada file yang dipilih."
-        root.destroy()
+    def update_jenjang(self, spinner, text):
+        self.spinner_jenjang.values = list(PROGRAM_STUDI.get(text, {}).keys())
+        self.spinner_jenjang.text = "Pilih"
+        self.spinner_prodi.text = "Pilih"
+        self.spinner_prodi.values = []
+
+    def update_prodi(self, spinner, text):
+        kategori = self.spinner_kategori.text
+        self.spinner_prodi.values = PROGRAM_STUDI.get(kategori, {}).get(text, [])
+        self.spinner_prodi.text = "Pilih"
 
     def clear_form(self, instance):
         for input_field in self.inputs.values():
             input_field.text = ""
-        self.spinner_jangka.text = "Pilih"
         self.spinner_kategori.text = "Pilih"
-        self.deskripsi_input.text = ""
-        self.selected_file = ""
+        self.spinner_jenjang.text = "Pilih"
+        self.spinner_prodi.text = "Pilih"
         self.warning_label.text = "Form dibersihkan."
 
     def submit_form(self, instance):
-        missing_fields = [label for label, input_field in self.inputs.items() if not input_field.text.strip()]
-        no_urut = self.inputs["No Urut"].text.strip()
-
-        if no_urut in used_numbers:
-            self.warning_label.text = "No Urut sudah digunakan."
-            return
-
-        if self.spinner_jangka.text == "Pilih":
-            missing_fields.append("Jangka Simpan")
-        if self.spinner_kategori.text == "Pilih":
-            missing_fields.append("Kategori Arsip")
-
+        missing_fields = [label for label, input_field in self.inputs.items() 
+                        if not input_field.text.strip()]
+        
+        if (self.spinner_kategori.text == "Pilih" or 
+            self.spinner_jenjang.text == "Pilih" or 
+            self.spinner_prodi.text == "Pilih"):
+            missing_fields.append("Kategori, Jenjang, atau Program Studi")
+        
         if missing_fields:
-            self.warning_label.text = "Form belum lengkap."
+            self.warning_label.text = f"Silakan lengkapi: {', '.join(missing_fields)}"
         else:
-            used_numbers.add(no_urut)
-            self.warning_label.text = "Form berhasil disubmit."
-            print(f"Data tersimpan dengan file: {self.selected_file if self.selected_file else 'Tidak ada file'}")
+            self.save_to_excel()
+            self.warning_label.text = "Data berhasil disimpan."
+
+    def save_to_excel(self):
+        file_path = self.selected_file
+        sheet_name = f"{self.spinner_kategori.text.upper()} {self.spinner_jenjang.text} {self.spinner_prodi.text}"
+        
+        if not os.path.exists(file_path):
+            workbook = openpyxl.Workbook()
+            sheet = workbook.active
+            sheet.title = sheet_name
+            sheet.append([sheet_name])
+            sheet.append([])
+            sheet.append(list(self.inputs.keys()))
+            workbook.save(file_path)
+        else:
+            workbook = openpyxl.load_workbook(file_path)
+            if sheet_name in workbook.sheetnames:
+                sheet = workbook[sheet_name]
+            else:
+                sheet = workbook.create_sheet(sheet_name)
+                sheet.append([sheet_name])
+                sheet.append([])
+                sheet.append(list(self.inputs.keys()))
+        
+        sheet.append([self.inputs[label].text for label in self.inputs])
+
+        # Adjust column widths
+        for col in sheet.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2) * 1.2
+            sheet.column_dimensions[column].width = adjusted_width
+
+        workbook.save(file_path)
 
     def go_back(self, instance):
-        self.manager.current = 'home'  # Kembali ke HomeScreen
+        self.manager.current = 'home'
+
+    def focus_next_input(self, instance):
+        input_fields = list(self.inputs.values())
+        current_index = input_fields.index(instance)
+        
+        if current_index < len(input_fields) - 1:
+            input_fields[current_index + 1].focus = True
+        else:
+            self.spinner_kategori.focus = True
+
+# Study program data
+PROGRAM_STUDI = {
+    "Skripsi": {
+        "S1": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA", "TEKNIK BIOMEDIS", 
+              "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
+        "S2": ["KIMIA", "BIOLOGI", "MATEMATIKA", "TEKNIK BIOMEDIS"],
+        "S3": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA"]
+    },
+    "Tesis": {
+        "S1": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA", "TEKNIK BIOMEDIS", 
+              "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
+        "S2": ["KIMIA", "BIOLOGI", "MATEMATIKA", "TEKNIK BIOMEDIS"],
+        "S3": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA"]
+    },
+    "Disertasi": {
+        "S1": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA", "TEKNIK BIOMEDIS", 
+              "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
+        "S2": ["KIMIA", "BIOLOGI", "MATEMATIKA", "TEKNIK BIOMEDIS"],
+        "S3": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA"]
+    }
+}
+
+class RuangBacaApp(App):
+    def build(self):
+        sm = ScreenManager()
+        sm.add_widget(InputScreen(name="input"))  
+        return sm
 
 if __name__ == '__main__':
-    sm = ScreenManager()
-    sm.add_widget(InputScreen(name="input"))
-
-    class ArsipApp(App):
-        def build(self):
-            return sm
-
-    ArsipApp().run()
+    RuangBacaApp().run()

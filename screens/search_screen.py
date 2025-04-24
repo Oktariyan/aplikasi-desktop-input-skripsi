@@ -1,210 +1,206 @@
 from kivy.app import App
-from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
-from kivy.uix.textinput import TextInput
-from kivy.uix.button import Button
-from kivy.uix.spinner import Spinner
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.image import Image
+from kivy.uix.button import Button
+from kivy.uix.screenmanager import Screen, ScreenManager
+from kivy.uix.textinput import TextInput
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.spinner import Spinner
 from kivy.core.text import LabelBase
 from kivy.core.window import Window
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, Line
+import pandas as pd
+import os
+import subprocess
 
-# Daftarkan font Roboto
-LabelBase.register(name='Roboto', fn_regular='assets/fonts/roboto-regular.ttf')
-LabelBase.register(name='Roboto2', fn_regular='assets/fonts/Roboto_Condensed-Bold.ttf')
+# Warna UI
+BUTTON_COLOR = (0.184, 0.322, 0.627, 1)  # Warna navbar (#2f52a0)
+TEXT_COLOR = (0, 0, 0, 1)  # Warna teks (hitam)
+BACKGROUND_COLOR = (1, 1, 1, 1)  # Warna latar belakang (putih)
+BORDER_COLOR = (0, 0, 0, 1)  # Warna border (hitam)
 
-# Ukuran dan rasio layar
+# Ukuran Window
 Window.size = (800, 600)
-Window.minimum_width = 500
-Window.minimum_height = 300
 
-# Warna
-NAVBAR_COLOR = (0.18, 0.32, 0.63, 1)  # Warna navbar (#2f52a0)
-BUTTON_COLOR = (0.16, 0.43, 0.75, 1)  # Warna tombol (#2a6fbf)
-BACKGROUND_COLOR = (1, 1, 1, 1)  # Latar belakang putih
-ROW_COLOR = (0.95, 0.95, 0.95, 1)  # Warna baris tabel
+class Navbar(BoxLayout):
+    def __init__(self, back_callback=None, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'horizontal'
+        self.size_hint_y = 0.1
+        self.padding = [20, 10]
+        self.spacing = 15
+
+        with self.canvas.before:
+            Color(*BUTTON_COLOR)
+            self.rect = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self.update_rect, size=self.update_rect)
+
+        back_btn = Button(size_hint=(None, None), size=(65, 65), pos_hint={'center_y': 0.5},
+                          background_normal='assets/icons/back_icon.png', background_down='assets/icons/back_icon.png')
+        if back_callback:
+            back_btn.bind(on_release=back_callback)
+        self.add_widget(back_btn)
+
+        logo = Image(source='assets/logo_unair.png', size_hint=(None, None), size=(50, 50))
+        self.add_widget(logo)
+
+        title_label = Label(text="RUANG BACA FAKULTAS SAINS DAN TEKNOLOGI", font_size=20,
+                            color=TEXT_COLOR, halign="left", valign="middle")
+        title_label.bind(size=title_label.setter('text_size'))
+        self.add_widget(title_label)
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
 
 class SearchScreen(Screen):
     def __init__(self, **kwargs):
-        super(SearchScreen, self).__init__(**kwargs)
+        super().__init__(**kwargs)
+        layout = BoxLayout(orientation='vertical')
 
-        with self.canvas.before:
-            Color(*BACKGROUND_COLOR)  # Latar belakang putih
-            self.bg_rect = Rectangle(size=self.size, pos=self.pos)
-        self.bind(size=self.update_bg_rect, pos=self.update_bg_rect)
+        # Tambahkan Navbar di atas
+        navbar = Navbar(back_callback=self.go_back)
+        layout.add_widget(navbar)
 
-        main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        # Area Konten
+        content = BoxLayout(orientation='vertical', padding=20, spacing=15)
+        content.canvas.before.add(Color(*BACKGROUND_COLOR))
+        content.canvas.before.add(Rectangle(pos=content.pos, size=content.size))
+        content.bind(pos=self.update_rect, size=self.update_rect)
 
-        # Navbar
-        navbar = BoxLayout(orientation='horizontal', size_hint=(1, 0.12), padding=[20, 10], spacing=15)
-        with navbar.canvas.before:
-            Color(*NAVBAR_COLOR)  # Warna latar navbar
-            self.navbar_rect = Rectangle(size=navbar.size, pos=navbar.pos)
-        navbar.bind(size=self.update_navbar_rect, pos=self.update_navbar_rect)
+        # Pesan kesalahan
+        self.message_label = Label(text="", font_size=16, color=(1, 0, 0, 1))
+        content.add_widget(self.message_label)
 
-        # Tombol Kembali
-        back_button = Button(
-            background_normal='assets/icons/back_icon.png',  # Pastikan path ini valid
-            size_hint=(None, None),  # Ukuran tidak diatur relatif
-            size=(50, 50),  # Ukuran tombol 50x50 piksel
-            pos_hint={'center_y': 0.5},  # Posisi vertikal di tengah
-            background_down='assets/icons/back_icon.png',  # Ikon saat tombol ditekan
-            background_color=(1, 1, 1, 1)  # Latar belakang putih (untuk debugging)
-        )
-        back_button.bind(on_press=self.on_back_button_press)
+        # Spinner untuk memilih sheet (warna teks diubah menjadi putih)
+        self.sheet_spinner = Spinner(text="Pilih Sheet", size_hint_y=None, height=40, background_color=BUTTON_COLOR, color=(1, 1, 1, 1))  # Warna teks putih
+        self.sheet_spinner.bind(text=self.on_sheet_select)
+        content.add_widget(self.sheet_spinner)
 
-        # Logo
-        logo = Image(source='assets/logo_unair.png', size_hint=(None, None), size=(50, 50), pos_hint={'center_y': 0.5})
+        # ScrollView untuk menampilkan data dalam bentuk tabel
+        self.scroll_view = ScrollView(size_hint=(1, None), size=(Window.width, Window.height * 0.6))
+        self.data_grid = GridLayout(cols=1, size_hint_y=None)
+        self.data_grid.bind(minimum_height=self.data_grid.setter('height'))
+        self.scroll_view.add_widget(self.data_grid)
+        content.add_widget(self.scroll_view)
 
-        # Judul Navbar
-        title = Label(
-            text="ARSIP FAKULTAS SAINS DAN TEKNOLOGI",
-            font_name="Roboto2",
-            font_size=20,
-            color=(1, 1, 1, 1),
-            halign="left",
-            valign="middle",
-            size_hint=(1, 1))
-        title.bind(size=title.setter('text_size'))
+        # Input untuk pencarian
+        self.search_input = TextInput(hint_text="Cari data...", size_hint_y=None, height=40, background_color=(1, 1, 1, 1), foreground_color=(0, 0, 0, 1))
+        content.add_widget(self.search_input)
 
-        # Tambahkan widget ke navbar
-        navbar.add_widget(back_button)
-        navbar.add_widget(logo)
-        navbar.add_widget(title)
+        # Tombol untuk mencari data (warna teks diubah menjadi putih)
+        search_button = Button(text="Cari", size_hint_y=None, height=40, background_color=BUTTON_COLOR, color=(1, 1, 1, 1))  # Warna teks putih
+        search_button.bind(on_release=self.search_data)
+        content.add_widget(search_button)
 
-        # Tambahkan navbar ke layout utama
-        main_layout.add_widget(navbar)
+        # Tombol untuk membuka file Excel (warna teks diubah menjadi putih)
+        open_excel_button = Button(text="Buka File Excel", size_hint_y=None, height=40, background_color=BUTTON_COLOR, color=(1, 1, 1, 1))  # Warna teks putih
+        open_excel_button.bind(on_release=self.open_excel_file)
+        content.add_widget(open_excel_button)
 
-        # Judul Halaman
-        title_label = Label(
-            text="PENCARIAN ARSIP",
-            font_name="Roboto",
-            font_size=28,
-            size_hint=(1, 0.1),
-            halign="center",
-            valign="middle",
-            color=(0, 0, 0, 1))
-        title_label.bind(size=title_label.setter('text_size'))
-        main_layout.add_widget(title_label)
+        layout.add_widget(content)
+        self.add_widget(layout)
 
-        # Form Pencarian
-        form_container = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, None), height=120, padding=[20, 10])
+        # Cek dan baca data
+        self.check_and_display_data()
 
-        form_layout = GridLayout(cols=4, spacing=10, size_hint=(1, 1))
+    def go_back(self, instance):
+        self.manager.current = 'home'
 
-        # Item Form
-        form_items = [
-            ("Jangka Simpan:", Spinner(text="Pilih Jangka Simpan", values=["Aktif", "Inaktif"], size_hint=(1, None), height=40)),
-            ("Kategori Arsip:", Spinner(text="Pilih Kategori", values=["AV: Arsip Vital", "AT: Arsip Terjaga", "R: Rahasia", "T: Terjaga"], size_hint=(1, None), height=40)),
-            ("No Urut:", TextInput(hint_text="Masukkan No Urut", size_hint=(1, None), height=40)),
-            ("Kata Kunci:", TextInput(hint_text="Masukkan kata kunci", size_hint=(1, None), height=40))
-        ]
+    def check_and_display_data(self):
+        file_path = "data_mahasiswa.xlsx"
+        if os.path.exists(file_path):
+            self.load_sheets(file_path)
+        else:
+            self.message_label.text = "File tidak ditemukan! Tolong buat atau isi input dulu."
+            self.sheet_spinner.values = []  # Kosongkan spinner jika file tidak ditemukan
 
-        for label_text, widget in form_items:
-            label = Label(
-                text=label_text,
-                font_name="Roboto",
-                font_size=18,
-                halign="right",
-                valign="middle",
-                color=(0, 0, 0, 1),
-                size_hint=(0.5, None),
-                height=40
-            )
-            label.bind(size=label.setter('text_size'))
+    def load_sheets(self, file_path):
+        try:
+            xl = pd.ExcelFile(file_path)
+            self.sheet_spinner.values = xl.sheet_names
+            self.sheet_spinner.text = xl.sheet_names[0] if xl.sheet_names else "Pilih Sheet"
+            self.on_sheet_select(self.sheet_spinner, self.sheet_spinner.text)
+        except Exception as e:
+            self.message_label.text = f"Gagal memuat sheet: {str(e)}"
+            self.sheet_spinner.values = []  # Kosongkan spinner jika terjadi kesalahan
 
-            widget.font_name = "Roboto"
-            widget.font_size = 16
+    def on_sheet_select(self, spinner, text):
+        file_path = "data_mahasiswa.xlsx"
+        if os.path.exists(file_path):
+            try:
+                df = pd.read_excel(file_path, sheet_name=text)
+                self.display_data(df)
+            except Exception as e:
+                self.message_label.text = f"Gagal memuat data: {str(e)}"
+                self.data_grid.clear_widgets()
+        else:
+            self.message_label.text = "File tidak ditemukan! Tolong buat atau isi input dulu."
 
-            form_layout.add_widget(label)
-            form_layout.add_widget(widget)
+    def search_data(self, instance):
+        file_path = "data_mahasiswa.xlsx"
+        if os.path.exists(file_path):
+            df = pd.read_excel(file_path, sheet_name=self.sheet_spinner.text)
+            search_term = self.search_input.text
+            if search_term:
+                result = df[df.apply(lambda row: row.astype(str).str.contains(search_term, case=False).any(), axis=1)]
+                if not result.empty:
+                    self.display_data(result)
+                else:
+                    self.message_label.text = "Data tidak ditemukan."
+                    self.data_grid.clear_widgets()
+            else:
+                self.message_label.text = "Masukkan kata kunci pencarian."
+                self.data_grid.clear_widgets()
+        else:
+            self.message_label.text = "File tidak ditemukan! Tolong buat atau isi input dulu."
 
-        form_container.add_widget(form_layout)
-        main_layout.add_widget(form_container)
+    def display_data(self, df):
+        self.data_grid.clear_widgets()
+        self.data_grid.cols = len(df.columns)
+        self.data_grid.size_hint_y = None
+        self.data_grid.height = len(df) * 40
 
-        # Tombol Cari
-        search_button = Button(
-            text="CARI",
-            font_name="Roboto",
-            font_size=18,
-            size_hint=(1, None),
-            height=50,
-            background_color=BUTTON_COLOR
-        )
-        main_layout.add_widget(search_button)
+        # Tambahkan header
+        for col in df.columns:
+            header = Label(text=str(col), font_size=14, color=TEXT_COLOR, size_hint_y=None, height=40)
+            with header.canvas.before:
+                Color(*BORDER_COLOR)
+                Line(rectangle=(header.x, header.y, header.width, header.height), width=1)
+            self.data_grid.add_widget(header)
 
-        # Header Tabel
-        table_header = GridLayout(cols=8, spacing=5, size_hint=(1, None), height=40, padding=[5, 0])
-        headers = ["No", "No Urut", "No Boks", "No Berkas", "Kode Klasifikasi", "Nama Berkas", "Kurun Waktu", "Edit"]
-        for header in headers:
-            lbl = Label(text=header, font_name="Roboto", font_size=16, bold=True, color=(0, 0, 0, 1), halign="center", valign="middle")
-            lbl.bind(size=lbl.setter('text_size'))
-            table_header.add_widget(lbl)
-        main_layout.add_widget(table_header)
+        # Tambahkan data
+        for _, row in df.iterrows():
+            for item in row:
+                data_label = Label(text=str(item), font_size=12, color=TEXT_COLOR, size_hint_y=None, height=40)
+                with data_label.canvas.before:
+                    Color(*BORDER_COLOR)
+                    Line(rectangle=(data_label.x, data_label.y, data_label.width, data_label.height), width=1)
+                self.data_grid.add_widget(data_label)
 
-        # ScrollView Hasil Pencarian
-        scroll_view = ScrollView(size_hint=(1, 0.6))
-        result_layout = GridLayout(cols=1, spacing=5, size_hint_y=None, padding=[5, 0])
-        result_layout.bind(minimum_height=result_layout.setter('height'))
+    def open_excel_file(self, instance):
+        file_path = "data_mahasiswa.xlsx"
+        if os.path.exists(file_path):
+            if os.name == 'nt':  # Windows
+                os.startfile(file_path)
+            elif os.name == 'posix':  # macOS dan Linux
+                subprocess.run(['open', file_path] if os.uname().sysname == 'Darwin' else ['xdg-open', file_path])
+        else:
+            self.message_label.text = "File tidak ditemukan! Tolong buat atau isi input dulu."
 
-        for i in range(1, 11):
-            row = GridLayout(cols=8, size_hint_y=None, height=40, padding=[5, 0], spacing=5)
-            with row.canvas.before:
-                Color(*ROW_COLOR)
-                Rectangle(size=row.size, pos=row.pos)
-            row.bind(size=self.update_row_rect, pos=self.update_row_rect)
+    def update_rect(self, instance, value):
+        instance.canvas.before.clear()
+        with instance.canvas.before:
+            Color(*BACKGROUND_COLOR)
+            Rectangle(pos=instance.pos, size=instance.size)
 
-            row_data = [
-                str(i), str(100 + i), f"Boks {i}", f"Berkas {i}", "001/ABC",
-                f"Dokumen {i}", "2020-2022"
-            ]
-
-            for data in row_data:
-                lbl = Label(text=data, font_name="Roboto", font_size=16, color=(0, 0, 0, 1), halign="center", valign="middle")
-                lbl.bind(size=lbl.setter('text_size'))
-                row.add_widget(lbl)
-
-            edit_btn = Button(
-                text="EDIT",
-                font_name="Roboto",
-                font_size=16,
-                size_hint=(1, None),
-                height=30,
-                background_color=BUTTON_COLOR,
-                color=(1, 1, 1, 1)
-            )
-            row.add_widget(edit_btn)
-            result_layout.add_widget(row)
-
-        scroll_view.add_widget(result_layout)
-        main_layout.add_widget(scroll_view)
-
-        self.add_widget(main_layout)
-
-    def update_bg_rect(self, instance, value):
-        self.bg_rect.size = instance.size
-        self.bg_rect.pos = instance.pos
-
-    def update_navbar_rect(self, instance, value):
-        self.navbar_rect.size = instance.size
-        self.navbar_rect.pos = instance.pos
-
-    def update_row_rect(self, instance, value):
-        for instr in instance.canvas.before.children:
-            if isinstance(instr, Rectangle):
-                instr.size = instance.size
-                instr.pos = instance.pos
-
-    def on_back_button_press(self, instance):
-        print("Tombol back ditekan!")
-        # Tambahkan logika navigasi ke halaman sebelumnya di sini
-
-class ArsipApp(App):
+class RuangBacaApp(App):
     def build(self):
-        return SearchScreen()
+        sm = ScreenManager()
+        sm.add_widget(SearchScreen(name="search"))
+        return sm
 
 if __name__ == '__main__':
-    ArsipApp().run()
+    RuangBacaApp().run()
