@@ -13,15 +13,33 @@ from kivy.core.window import Window
 from kivy.uix.image import Image
 from kivy.graphics import Color, Rectangle
 from datetime import datetime
+import sys
 
-# Window size
+# Enhanced resource path function
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    path = os.path.join(base_path, *relative_path.split('/'))
+    path = os.path.normpath(path)
+    
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Resource not found: {path}")
+    
+    return path
+
+# Atur ukuran window
 Window.size = (800, 600)
 
-# Color constants
-BUTTON_COLOR = (0.184, 0.322, 0.627, 1)  # Navbar color (#2f52a0)
-RED_COLOR = (1, 0, 0, 1)  # Warning color
-BLACK_COLOR = (0, 0, 0, 1)  # Text color
-WHITE_COLOR = (1, 1, 1, 1)  # White color
+# Warna UI
+BUTTON_COLOR = (0.184, 0.322, 0.627, 1)  # Warna navbar (#2f52a0)
+RED_COLOR = (1, 0, 0, 1)  # Warna merah untuk peringatan
+BLACK_COLOR = (0, 0, 0, 1)  # Warna hitam
+WHITE_COLOR = (1, 1, 1, 1)  # Warna putih
 
 class Navbar(BoxLayout):
     def __init__(self, back_callback=None, **kwargs):
@@ -37,14 +55,14 @@ class Navbar(BoxLayout):
         self.bind(pos=self.update_rect, size=self.update_rect)
 
         back_btn = Button(size_hint=(None, None), size=(65, 65), pos_hint={'center_y': 0.5},
-                         background_normal='assets/icons/back_icon.png', 
-                         background_down='assets/icons/back_icon.png')
+                          background_normal='assets/icons/back_icon.png', 
+                          background_down='assets/icons/back_icon.png')
         if back_callback:
             back_btn.bind(on_release=back_callback)
         self.add_widget(back_btn)
 
         logo = Image(source='assets/logo_unair.png', size_hint=(None, None), 
-                    size=(50, 50), pos_hint={'center_y': 0.5})
+                     size=(50, 50), pos_hint={'center_y': 0.5})
         self.add_widget(logo)
 
         title_label = Label(text="RUANG BACA FAKULTAS SAINS DAN TEKNOLOGI", 
@@ -62,13 +80,13 @@ class InputScreen(Screen):
         super().__init__(**kwargs)
 
         with self.canvas.before:
-            Color(*WHITE_COLOR)
+            Color(*WHITE_COLOR)  # Latar belakang putih
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
 
         self.selected_file = "data_mahasiswa.xlsx"
         self.warning_label = Label(text="", font_size=14, color=RED_COLOR, 
-                                  size_hint=(1, 0.05), halign="center")
+                                 size_hint=(1, 0.05), halign="center")
 
         main_layout = BoxLayout(orientation="vertical", padding=[20, 10], spacing=10)
         
@@ -76,45 +94,51 @@ class InputScreen(Screen):
         navbar = Navbar(back_callback=self.go_back)
         main_layout.add_widget(navbar)
 
-        # Title
+        # Judul
         title_layout = BoxLayout(size_hint=(1, 0.12), padding=[0, 10])
         title = Label(text="INPUT DATA MAHASISWA", font_size=24, 
-                     color=BLACK_COLOR, halign="center", valign="middle")
-        title.bind(size=title.setter('text_size'))
+                     size_hint=(1, 1), color=BLACK_COLOR, 
+                     halign="center", valign="middle")
+        title.bind(size=lambda instance, value: setattr(instance, 'text_size', value))
         title_layout.add_widget(title)
         main_layout.add_widget(title_layout)
 
-        # Form Layout
+        # Form Input
         scroll = ScrollView(size_hint=(1, 0.7))
         form_layout = GridLayout(cols=2, spacing=15, padding=[20, 10], 
                                size_hint_y=None, row_default_height=50)
         form_layout.bind(minimum_height=form_layout.setter('height'))
 
         labels = ["TANGGAL PENCATATAN", "NO. INDUK", "PENGARANG", "NIM", 
-                "TAHUN TERBIT", "JUDUL"]
+                 "TAHUN TERBIT", "JUDUL"]
         self.inputs = {}
         
-        # Category spinner
+        # Spinner Kategori
         form_layout.add_widget(Label(text="Jenis Karya Ilmiah", color=BLACK_COLOR))
-        self.spinner_kategori = Spinner(text="Pilih", values=list(PROGRAM_STUDI.keys()))
+        self.spinner_kategori = Spinner(text="Pilih", values=list(PROGRAM_STUDI.keys()),
+                                      size_hint_y=None, height=40)
         self.spinner_kategori.bind(text=self.update_jenjang)
         form_layout.add_widget(self.spinner_kategori)
         
-        # Level spinner
+        # Spinner Jenjang
         form_layout.add_widget(Label(text="Jenjang", color=BLACK_COLOR))
-        self.spinner_jenjang = Spinner(text="Pilih", values=[])
+        self.spinner_jenjang = Spinner(text="Pilih", values=[], 
+                                      size_hint_y=None, height=40)
         self.spinner_jenjang.bind(text=self.update_prodi)
         form_layout.add_widget(self.spinner_jenjang)
         
-        # Program spinner
+        # Spinner Program Studi
         form_layout.add_widget(Label(text="Program Studi", color=BLACK_COLOR))
-        self.spinner_prodi = Spinner(text="Pilih", values=[])
+        self.spinner_prodi = Spinner(text="Pilih", values=[], 
+                                    size_hint_y=None, height=40)
         form_layout.add_widget(self.spinner_prodi)
         
         # Input fields
         for label_text in labels:
             form_layout.add_widget(Label(text=label_text, color=BLACK_COLOR))
-            input_field = TextInput(multiline=False, foreground_color=BLACK_COLOR)
+            input_field = TextInput(multiline=False, halign="center", 
+                                  foreground_color=BLACK_COLOR,
+                                  size_hint_y=None, height=40)
             input_field.bind(on_text_validate=self.focus_next_input)
             form_layout.add_widget(input_field)
             self.inputs[label_text] = input_field
@@ -123,10 +147,12 @@ class InputScreen(Screen):
         main_layout.add_widget(scroll)
         main_layout.add_widget(self.warning_label)
 
-        # Buttons
+        # Tombol
         button_layout = BoxLayout(size_hint=(1, 0.1), spacing=20, padding=[20, 10])
-        clear_btn = Button(text="CLEAR", background_color=BUTTON_COLOR, color=WHITE_COLOR)
-        submit_btn = Button(text="SUBMIT", background_color=BUTTON_COLOR, color=WHITE_COLOR)
+        clear_btn = Button(text="CLEAR", background_color=BUTTON_COLOR, 
+                          color=WHITE_COLOR, size_hint_y=None, height=40)
+        submit_btn = Button(text="SUBMIT", background_color=BUTTON_COLOR, 
+                           color=WHITE_COLOR, size_hint_y=None, height=40)
         clear_btn.bind(on_release=self.clear_form)
         submit_btn.bind(on_release=self.submit_form)
         button_layout.add_widget(clear_btn)
@@ -162,13 +188,13 @@ class InputScreen(Screen):
         missing_fields = [label for label, input_field in self.inputs.items() 
                         if not input_field.text.strip()]
         
-        if (self.spinner_kategori.text == "Pilih" or 
-            self.spinner_jenjang.text == "Pilih" or 
-            self.spinner_prodi.text == "Pilih"):
+        if self.spinner_kategori.text == "Pilih" or \
+           self.spinner_jenjang.text == "Pilih" or \
+           self.spinner_prodi.text == "Pilih":
             missing_fields.append("Kategori, Jenjang, atau Program Studi")
         
         if missing_fields:
-            self.warning_label.text = f"Silakan lengkapi: {', '.join(missing_fields)}"
+            self.warning_label.text = f"Silakan lengkapi terlebih dahulu: {', '.join(missing_fields)}"
         else:
             self.save_to_excel()
             self.warning_label.text = "Data berhasil disimpan."
@@ -195,9 +221,10 @@ class InputScreen(Screen):
                 sheet.append([])
                 sheet.append(list(self.inputs.keys()))
         
-        sheet.append([self.inputs[label].text for label in self.inputs])
+        row_data = [self.inputs[label].text for label in self.inputs]
+        sheet.append(row_data)
 
-        # Adjust column widths
+        # Menyesuaikan lebar kolom
         for col in sheet.columns:
             max_length = 0
             column = col[0].column_letter
@@ -224,23 +251,23 @@ class InputScreen(Screen):
         else:
             self.spinner_kategori.focus = True
 
-# Study program data
+# Data Program Studi
 PROGRAM_STUDI = {
     "Skripsi": {
         "S1": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA", "TEKNIK BIOMEDIS", 
-              "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
+               "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
         "S2": ["KIMIA", "BIOLOGI", "MATEMATIKA", "TEKNIK BIOMEDIS"],
         "S3": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA"]
     },
     "Tesis": {
         "S1": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA", "TEKNIK BIOMEDIS", 
-              "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
+               "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
         "S2": ["KIMIA", "BIOLOGI", "MATEMATIKA", "TEKNIK BIOMEDIS"],
         "S3": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA"]
     },
     "Disertasi": {
         "S1": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA", "TEKNIK BIOMEDIS", 
-              "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
+               "SISTEM INFORMASI", "STATISTIKA", "TEKNIK LINGKUNGAN"],
         "S2": ["KIMIA", "BIOLOGI", "MATEMATIKA", "TEKNIK BIOMEDIS"],
         "S3": ["KIMIA", "BIOLOGI", "MATEMATIKA", "FISIKA"]
     }

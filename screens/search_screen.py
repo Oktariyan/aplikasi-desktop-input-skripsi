@@ -8,12 +8,29 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
-from kivy.core.text import LabelBase
 from kivy.core.window import Window
 from kivy.graphics import Color, Rectangle, Line
 import pandas as pd
 import os
+import sys
 import subprocess
+
+# Enhanced resource path function
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    path = os.path.join(base_path, *relative_path.split('/'))
+    path = os.path.normpath(path)
+    
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Resource not found: {path}")
+    
+    return path
 
 # Warna UI
 BUTTON_COLOR = (0.184, 0.322, 0.627, 1)  # Warna navbar (#2f52a0)
@@ -46,8 +63,8 @@ class Navbar(BoxLayout):
         logo = Image(source='assets/logo_unair.png', size_hint=(None, None), size=(50, 50))
         self.add_widget(logo)
 
-        title_label = Label(text="RUANG BACA FAKULTAS SAINS DAN TEKNOLOGI", font_size=20,
-                            color=TEXT_COLOR, halign="left", valign="middle")
+        title_label = Label(text="RUANG BACA FAKULTAS SAINS DAN TEKNOLOGI", 
+                          font_size=20, color=TEXT_COLOR, halign="left", valign="middle")
         title_label.bind(size=title_label.setter('text_size'))
         self.add_widget(title_label)
 
@@ -74,12 +91,13 @@ class SearchScreen(Screen):
         self.message_label = Label(text="", font_size=16, color=(1, 0, 0, 1))
         content.add_widget(self.message_label)
 
-        # Spinner untuk memilih sheet (warna teks diubah menjadi putih)
-        self.sheet_spinner = Spinner(text="Pilih Sheet", size_hint_y=None, height=40, background_color=BUTTON_COLOR, color=(1, 1, 1, 1))  # Warna teks putih
+        # Spinner untuk memilih sheet
+        self.sheet_spinner = Spinner(text="Pilih Sheet", size_hint_y=None, height=40, 
+                                   background_color=BUTTON_COLOR, color=(1, 1, 1, 1))
         self.sheet_spinner.bind(text=self.on_sheet_select)
         content.add_widget(self.sheet_spinner)
 
-        # ScrollView untuk menampilkan data dalam bentuk tabel
+        # ScrollView untuk menampilkan data
         self.scroll_view = ScrollView(size_hint=(1, None), size=(Window.width, Window.height * 0.6))
         self.data_grid = GridLayout(cols=1, size_hint_y=None)
         self.data_grid.bind(minimum_height=self.data_grid.setter('height'))
@@ -87,16 +105,19 @@ class SearchScreen(Screen):
         content.add_widget(self.scroll_view)
 
         # Input untuk pencarian
-        self.search_input = TextInput(hint_text="Cari data...", size_hint_y=None, height=40, background_color=(1, 1, 1, 1), foreground_color=(0, 0, 0, 1))
+        self.search_input = TextInput(hint_text="Cari data...", size_hint_y=None, height=40, 
+                                    background_color=(1, 1, 1, 1), foreground_color=(0, 0, 0, 1))
         content.add_widget(self.search_input)
 
-        # Tombol untuk mencari data (warna teks diubah menjadi putih)
-        search_button = Button(text="Cari", size_hint_y=None, height=40, background_color=BUTTON_COLOR, color=(1, 1, 1, 1))  # Warna teks putih
+        # Tombol untuk mencari data
+        search_button = Button(text="Cari", size_hint_y=None, height=40, 
+                              background_color=BUTTON_COLOR, color=(1, 1, 1, 1))
         search_button.bind(on_release=self.search_data)
         content.add_widget(search_button)
 
-        # Tombol untuk membuka file Excel (warna teks diubah menjadi putih)
-        open_excel_button = Button(text="Buka File Excel", size_hint_y=None, height=40, background_color=BUTTON_COLOR, color=(1, 1, 1, 1))  # Warna teks putih
+        # Tombol untuk membuka file Excel
+        open_excel_button = Button(text="Buka File Excel", size_hint_y=None, height=40, 
+                                  background_color=BUTTON_COLOR, color=(1, 1, 1, 1))
         open_excel_button.bind(on_release=self.open_excel_file)
         content.add_widget(open_excel_button)
 
@@ -115,7 +136,7 @@ class SearchScreen(Screen):
             self.load_sheets(file_path)
         else:
             self.message_label.text = "File tidak ditemukan! Tolong buat atau isi input dulu."
-            self.sheet_spinner.values = []  # Kosongkan spinner jika file tidak ditemukan
+            self.sheet_spinner.values = []
 
     def load_sheets(self, file_path):
         try:
@@ -125,7 +146,7 @@ class SearchScreen(Screen):
             self.on_sheet_select(self.sheet_spinner, self.sheet_spinner.text)
         except Exception as e:
             self.message_label.text = f"Gagal memuat sheet: {str(e)}"
-            self.sheet_spinner.values = []  # Kosongkan spinner jika terjadi kesalahan
+            self.sheet_spinner.values = []
 
     def on_sheet_select(self, spinner, text):
         file_path = "data_mahasiswa.xlsx"
@@ -165,7 +186,8 @@ class SearchScreen(Screen):
 
         # Tambahkan header
         for col in df.columns:
-            header = Label(text=str(col), font_size=14, color=TEXT_COLOR, size_hint_y=None, height=40)
+            header = Label(text=str(col), font_size=14, color=TEXT_COLOR, 
+                          size_hint_y=None, height=40)
             with header.canvas.before:
                 Color(*BORDER_COLOR)
                 Line(rectangle=(header.x, header.y, header.width, header.height), width=1)
@@ -174,7 +196,8 @@ class SearchScreen(Screen):
         # Tambahkan data
         for _, row in df.iterrows():
             for item in row:
-                data_label = Label(text=str(item), font_size=12, color=TEXT_COLOR, size_hint_y=None, height=40)
+                data_label = Label(text=str(item), font_size=12, color=TEXT_COLOR, 
+                                 size_hint_y=None, height=40)
                 with data_label.canvas.before:
                     Color(*BORDER_COLOR)
                     Line(rectangle=(data_label.x, data_label.y, data_label.width, data_label.height), width=1)
@@ -195,12 +218,3 @@ class SearchScreen(Screen):
         with instance.canvas.before:
             Color(*BACKGROUND_COLOR)
             Rectangle(pos=instance.pos, size=instance.size)
-
-class RuangBacaApp(App):
-    def build(self):
-        sm = ScreenManager()
-        sm.add_widget(SearchScreen(name="search"))
-        return sm
-
-if __name__ == '__main__':
-    RuangBacaApp().run()
